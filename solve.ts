@@ -37,9 +37,6 @@ class Solver {
       slots: this.slots,
       poolSize: this.pool.length
     });
-    if (this.pool.length === 0) {
-      throw new Error("Exhausted pool, solution unfindable.");
-    }
     return {
       word: choose(this.pool),
       confidence: 0
@@ -56,24 +53,18 @@ class Solver {
         console.debug(`Found solution after ${this.tries} guesses!`);
         return this.tries;
       }
-      this.pool = this.pool.filter((word) => {
-        let allowed = true;
-        for (const [i, slot] of slots.entries()) {
-          const letter = guess.word[i];
-          switch (slot) {
-            case Slot.RIGHT_SPOT:
-              allowed = allowed && word[i] === letter;
-              break;
-            case Slot.WRONG_SPOT:
-              allowed = allowed && word.includes(letter);
-              break;
-            case Slot.MISSING:
-              allowed = allowed && !word.includes(letter);
-              break;
-          }
+
+      for (const [i, slot] of slots.entries()) {
+        const letter = guess.word[i];
+        if (slot === Slot.RIGHT_SPOT) {
+          this.slots[i] = letter;
+          this.pool = this.pool.filter((word) => word[i] === letter);
+        } else if (slot === Slot.WRONG_SPOT) {
+          this.pool = this.pool.filter((word) => word.includes(letter));
+        } else {
+          this.pool = this.pool.filter((word) => !word.includes(letter));
         }
-        return allowed;
-      });
+      }
     }
     console.debug(`Failed to find solution after ${this.tries} tries.`);
     return 0;
