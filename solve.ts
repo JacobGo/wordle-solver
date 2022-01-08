@@ -6,9 +6,11 @@ import { parse } from "https://deno.land/std@0.120.0/flags/mod.ts";
 // Silence debug output.
 console.debug = () => {};
 
-const { tries, trials } = parse(Deno.args);
+const { tries, trials, start, saveOutput } = parse(Deno.args);
 const MAX_TRIES = tries || 6;
 const TRIALS = trials || 100000;
+const START_WORD = start || "weary";
+const SAVE_OUTPUT = saveOutput || false;
 
 type Guess = {
   word: string;
@@ -34,7 +36,7 @@ class Solver {
   }
 
   findGuess(): Guess {
-    console.debug(`**** GUESS ${this.tries + 1} ****`);
+    console.debug(`**** GUESS ${this.tries} ****`);
     console.debug({
       poolSize: this.pool.length
     });
@@ -42,8 +44,8 @@ class Solver {
       throw new Error("Exhausted pool, solution unfindable.");
     }
     return {
-      word: chooseRandom(this.pool),
-      confidence: ((1 / this.pool.length) * 100).toPrecision(4)
+      word: this.tries === 1 ? START_WORD : chooseRandom(this.pool),
+      confidence: `${((1 / this.pool.length) * 100).toPrecision(4)}%`
     };
   }
 
@@ -63,7 +65,9 @@ class Solver {
         if (slot === Slot.RIGHT_SPOT) {
           this.pool = this.pool.filter((word) => word[i] === letter);
         } else if (slot === Slot.WRONG_SPOT) {
-          this.pool = this.pool.filter((word) => word.includes(letter));
+          this.pool = this.pool.filter(
+            (word) => word.includes(letter) && word[i] !== letter
+          );
         } else {
           this.pool = this.pool.filter((word) => !word.includes(letter));
         }
@@ -101,10 +105,21 @@ const simulate = async (rounds = 100) => {
   }
   values += tries.get(MAX_TRIES) || 0;
 
-  await Deno.writeTextFile(
-    "output.csv",
-    `${Array.from(Array(MAX_TRIES + 1).keys()).join(",")}\n${values}`
-  );
+  const output = `${Array.from(Array(MAX_TRIES + 1).keys()).join(
+    ","
+  )}\n${values}`;
+
+  if (SAVE_OUTPUT) {
+    await Deno.writeTextFile("output.csv", output);
+  } else {
+    console.log(output);
+  }
+
+  let weights = 0;
+  for (const [t, count] of tries.entries()) {
+    weights += t * count;
+  }
+  console.log(`Average guesses: ${weights / TRIALS}`);
 };
 
 simulate(TRIALS);
