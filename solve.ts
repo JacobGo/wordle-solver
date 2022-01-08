@@ -1,10 +1,14 @@
 import { Game, Slot } from "./game.ts";
 import { FrequencyDistribution } from "./frequency_distribution.ts";
+import { chooseRandom } from "./utils.ts";
+import { parse } from "https://deno.land/std@0.120.0/flags/mod.ts";
 
 // Silence debug output.
 console.debug = () => {};
 
-const MAX_TRIES = 6;
+const { tries, trials } = parse(Deno.args);
+const MAX_TRIES = tries || 6;
+const TRIALS = trials || 100000;
 
 type Guess = {
   word: string;
@@ -42,7 +46,7 @@ class Solver {
       throw new Error("Exhausted pool, solution unfindable.");
     }
     return {
-      word: choose(this.pool),
+      word: chooseRandom(this.pool),
       confidence: ((1 / this.pool.length) * 100).toPrecision(4)
     };
   }
@@ -100,7 +104,7 @@ class Solver {
   }
 
   play(): number {
-    while (this.tries < 6) {
+    while (this.tries < MAX_TRIES) {
       this.tries += 1;
       const guess = this.findGuess();
       console.debug(`${guess.word} (${guess.confidence})?`);
@@ -116,10 +120,6 @@ class Solver {
   }
 }
 
-function choose<T>(arr: Array<T>): T {
-  return arr[Math.floor(Math.random() * arr.length)];
-}
-
 const dictionary = JSON.parse(
   await Deno.readTextFile("dictionary.json")
 ) as string[];
@@ -132,7 +132,7 @@ const simulate = async (rounds = 100) => {
     if (i % 1000 === 0) {
       console.log(`${(i / rounds) * 100}%`);
     }
-    const solution = choose(dictionary);
+    const solution = chooseRandom(dictionary);
     console.debug(`New game with ${solution}`);
     const game = new Game(solution);
     const solver = new Solver(dictionary, freqDist, game);
@@ -142,10 +142,15 @@ const simulate = async (rounds = 100) => {
   }
 
   let values = "";
-  for (let i = 0; i < 6; i++) {
+  for (let i = 0; i < MAX_TRIES; i++) {
     values += `${tries.get(i) || 0},`;
   }
-  values += tries.get(6);
-  await Deno.writeTextFile("output.csv", `0,1,2,3,4,5,6\n${values}`);
+  values += tries.get(MAX_TRIES) || 0;
+
+  await Deno.writeTextFile(
+    "output.csv",
+    `${Array.from(Array(MAX_TRIES + 1).keys()).join(",")}\n${values}`
+  );
 };
-simulate(100000);
+
+simulate(TRIALS);
