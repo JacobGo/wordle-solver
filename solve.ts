@@ -17,8 +17,8 @@ class Solver {
   private pool: string[];
 
   private known = ["", "", "", "", ""];
-  private always: string[] = [];
-  private never: string[] = [];
+  private always = new Set<string>();
+  private never = new Set<string>();
 
   private game: Game;
   private tries = 0;
@@ -53,14 +53,14 @@ class Solver {
       const letter = guess.word[i];
       switch (slot) {
         case Slot.RIGHT_SPOT:
-          !this.always.includes(letter) && this.always.push(letter);
+          this.always.add(letter);
           this.known[i] = letter;
           break;
         case Slot.WRONG_SPOT:
-          !this.always.includes(letter) && this.always.push(letter);
+          this.always.add(letter);
           break;
         case Slot.MISSING:
-          !this.never.includes(letter) && this.never.push(letter);
+          this.never.add(letter);
           break;
       }
     }
@@ -78,11 +78,11 @@ class Solver {
       for (let i = 0; i < word.length; i++) {
         const letter = word[i];
 
-        if (this.never.includes(letter)) {
+        if (this.never.has(letter)) {
           return false;
         }
 
-        if (this.always.includes(letter)) {
+        if (this.always.has(letter)) {
           rightMatches += 1;
         }
 
@@ -95,7 +95,7 @@ class Solver {
         }
       }
       // >= accounts for repeated letters
-      return rightMatches >= this.always.length && knownMatches == knownCount;
+      return rightMatches >= this.always.size && knownMatches == knownCount;
     });
   }
 
