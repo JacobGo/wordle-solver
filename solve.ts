@@ -20,10 +20,6 @@ class Solver {
   private lettersFreqDist: FrequencyDistribution;
   private pool: string[];
 
-  private known = ["", "", "", "", ""];
-  private always = new Set<string>();
-  private never = new Set<string>();
-
   private game: Game;
   private tries = 0;
 
@@ -51,58 +47,6 @@ class Solver {
     };
   }
 
-  filterPool(slots: Slot[], guess: Guess): void {
-    // Update the known facts with the slot information.
-    for (const [i, slot] of slots.entries()) {
-      const letter = guess.word[i];
-      switch (slot) {
-        case Slot.RIGHT_SPOT:
-          this.always.add(letter);
-          this.known[i] = letter;
-          break;
-        case Slot.WRONG_SPOT:
-          this.always.add(letter);
-          break;
-        case Slot.MISSING:
-          this.never.add(letter);
-          break;
-      }
-    }
-    console.debug({
-      known: this.known,
-      always: this.always,
-      never: this.never
-    });
-
-    const knownCount = this.known.filter((l) => l != "").length;
-    this.pool = this.pool.filter((word) => {
-      let rightMatches = 0;
-      let knownMatches = 0;
-
-      for (let i = 0; i < word.length; i++) {
-        const letter = word[i];
-
-        if (this.never.has(letter)) {
-          return false;
-        }
-
-        if (this.always.has(letter)) {
-          rightMatches += 1;
-        }
-
-        if (this.known[i] != "") {
-          if (letter == this.known[i]) {
-            knownMatches += 1;
-          } else {
-            return false;
-          }
-        }
-      }
-      // >= accounts for repeated letters
-      return rightMatches >= this.always.size && knownMatches == knownCount;
-    });
-  }
-
   play(): number {
     while (this.tries < MAX_TRIES) {
       this.tries += 1;
@@ -113,7 +57,17 @@ class Solver {
         console.debug(`Found solution after ${this.tries} guesses!`);
         return this.tries;
       }
-      this.filterPool(slots, guess);
+
+      for (const [i, slot] of slots.entries()) {
+        const letter = guess.word[i];
+        if (slot === Slot.RIGHT_SPOT) {
+          this.pool = this.pool.filter((word) => word[i] === letter);
+        } else if (slot === Slot.WRONG_SPOT) {
+          this.pool = this.pool.filter((word) => word.includes(letter));
+        } else {
+          this.pool = this.pool.filter((word) => !word.includes(letter));
+        }
+      }
     }
     console.debug(`Failed to find solution after ${this.tries} tries.`);
     return 0;
