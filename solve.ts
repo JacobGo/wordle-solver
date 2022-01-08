@@ -8,7 +8,7 @@ const MAX_TRIES = 6;
 
 type Guess = {
   word: string;
-  confidence: number;
+  confidence: string;
 };
 
 class Solver {
@@ -16,7 +16,9 @@ class Solver {
   private lettersFreqDist: FrequencyDistribution;
   private pool: string[];
 
-  private slots = ["", "", "", "", ""];
+  private known = ["", "", "", "", ""];
+  private always: string[] = [];
+  private never: string[] = [];
 
   private game: Game;
   private tries = 0;
@@ -34,13 +36,67 @@ class Solver {
   findGuess(): Guess {
     console.debug(`**** GUESS ${this.tries + 1} ****`);
     console.debug({
-      slots: this.slots,
       poolSize: this.pool.length
     });
+    if (this.pool.length === 0) {
+      throw new Error("Exhausted pool, solution unfindable.");
+    }
     return {
       word: choose(this.pool),
-      confidence: 0
+      confidence: ((1 / this.pool.length) * 100).toPrecision(4)
     };
+  }
+
+  filterPool(slots: Slot[], guess: Guess): void {
+    // Update the known facts with the slot information.
+    for (const [i, slot] of slots.entries()) {
+      const letter = guess.word[i];
+      switch (slot) {
+        case Slot.RIGHT_SPOT:
+          !this.always.includes(letter) && this.always.push(letter);
+          this.known[i] = letter;
+          break;
+        case Slot.WRONG_SPOT:
+          !this.always.includes(letter) && this.always.push(letter);
+          break;
+        case Slot.MISSING:
+          !this.never.includes(letter) && this.never.push(letter);
+          break;
+      }
+    }
+    console.debug({
+      known: this.known,
+      always: this.always,
+      never: this.never
+    });
+
+    const knownCount = this.known.filter((l) => l != "").length;
+    this.pool = this.pool.filter((word) => {
+      let rightMatches = 0;
+      let knownMatches = 0;
+
+      for (let i = 0; i < word.length; i++) {
+        const letter = word[i];
+
+        if (this.never.includes(letter)) {
+          return false;
+        }
+
+        if (this.always.includes(letter)) {
+          rightMatches += 1;
+        }
+
+        if (this.known[i] != "") {
+          if (letter == this.known[i]) {
+            knownMatches += 1;
+          } else {
+            return false;
+          }
+        }
+      }
+      // >= accounts for repeated letters
+      return rightMatches >= this.always.length && knownMatches == knownCount;
+    });
   }
 
   play(): number {
@@ -53,18 +109,7 @@ class Solver {
         console.debug(`Found solution after ${this.tries} guesses!`);
         return this.tries;
       }
-
-      for (const [i, slot] of slots.entries()) {
-        const letter = guess.word[i];
-        if (slot === Slot.RIGHT_SPOT) {
-          this.slots[i] = letter;
-          this.pool = this.pool.filter((word) => word[i] === letter);
-        } else if (slot === Slot.WRONG_SPOT) {
-          this.pool = this.pool.filter((word) => word.includes(letter));
-        } else {
-          this.pool = this.pool.filter((word) => !word.includes(letter));
-        }
-      }
+      this.filterPool(slots, guess);
     }
     console.debug(`Failed to find solution after ${this.tries} tries.`);
     return 0;
